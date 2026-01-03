@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Analytics Dashboard</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Premium CSS -->
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/glassmorphism.css' %}">
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-glass">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-cloud-sun-fill"></i> Weather Analytics
+            </a>
+        </div>
+    </nav>
+    
+    <div class="container main-container">
+        <!-- Search Section -->
+        <div class="search-card fade-in">
+            <h3><i class="bi bi-search"></i> Search Weather</h3>
+            <div class="row g-3">
+                <div class="col-md-9">
+                    <input type="text" class="form-control form-control-lg" id="cityInput" 
+                           placeholder="Enter city name (e.g., London, New York, Tokyo)"
+                           minlength="2"
+                           pattern="[a-zA-Z\s\-'\.]+"
+                           title="Enter a valid city name (letters, spaces, hyphens, apostrophes only)">
+                    <small class="text-muted-dark mt-2 d-block" style="font-size: 0.75rem;">
+                        Enter a valid city name to get accurate weather data
+                    </small>
+                </div>
+                <div class="col-md-3">
+                    <button class="btn btn-glass w-100" onclick="searchWeather()">
+                        <i class="bi bi-search"></i> Search
+                    </button>
+                </div>
+            </div>
+            <div class="mt-4">
+                <div class="loading-spinner text-center" style="display: none;">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 text-muted-dark" style="font-size: 0.875rem;">Fetching weather data...</p>
+                </div>
+                <div class="error-alert alert" role="alert" style="display: none;">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <span class="error-message"></span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Current Weather Section -->
+        <div id="currentWeatherSection" style="display: none;" class="fade-in">
+            <div class="current-weather">
+                <div class="row align-items-center">
+                    <div class="col-lg-7">
+                        <h2 id="currentCity" class="mb-4"></h2>
+                        <div class="temperature-display" id="currentTemp"></div>
+                        <p class="fs-5 mb-3" id="currentDescription" style="font-weight: 500;"></p>
+                        <p class="mb-0" style="color: var(--text-muted);"><i class="bi bi-geo-alt"></i> <span id="currentLocation"></span></p>
+                    </div>
+                    <div class="col-lg-5 text-center">
+                        <img id="currentIcon" class="weather-icon" src="" alt="Weather Icon">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Weather Stats Cards -->
+            <div class="row g-4 mb-4" id="weatherStats">
+                <!-- Stats will be populated here -->
+            </div>
+        </div>
+        
+        <!-- Forecast Section -->
+        <div id="forecastSection" style="display: none;" class="fade-in">
+            <div class="chart-container mb-4">
+                <h5 class="mb-4"><i class="bi bi-calendar-week"></i> 7-Day Forecast</h5>
+                <div class="row g-3" id="forecastCards">
+                    <!-- Forecast cards will be populated here -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Analytics Charts Section -->
+        <div id="analyticsSection" style="display: none;" class="fade-in">
+            <h3 class="mb-5"><i class="bi bi-graph-up-arrow"></i> Data Analytics</h3>
+            
+            <!-- Temperature Trends -->
+            <div class="chart-container">
+                <h5><i class="bi bi-thermometer-half"></i> Temperature Trends</h5>
+                <canvas id="temperatureChart" style="max-height: 400px;"></canvas>
+            </div>
+            
+            <!-- Humidity Trends -->
+            <div class="chart-container">
+                <h5><i class="bi bi-droplet"></i> Humidity Trends</h5>
+                <canvas id="humidityChart" style="max-height: 400px;"></canvas>
+            </div>
+            
+            <!-- Rainfall Analysis -->
+            <div class="chart-container">
+                <h5><i class="bi bi-cloud-rain"></i> Rainfall Analysis</h5>
+                <canvas id="rainfallChart" style="max-height: 400px;"></canvas>
+            </div>
+            
+            <!-- Wind Speed Analysis -->
+            <div class="chart-container">
+                <h5><i class="bi bi-wind"></i> Wind Speed Analysis</h5>
+                <canvas id="windChart" style="max-height: 400px;"></canvas>
+            </div>
+            
+            <!-- Comparison Chart -->
+            <div class="chart-container">
+                <h5><i class="bi bi-bar-chart-line"></i> Multi-Metric Comparison</h5>
+                <canvas id="comparisonChart" style="max-height: 400px;"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Global variables
+        let currentCity = '';
+        let charts = {};
+        
+        // Premium Chart.js configuration - blends seamlessly with UI
+        Chart.defaults.color = 'rgba(255, 255, 255, 0.85)';
+        Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.08)';
+        Chart.defaults.backgroundColor = 'rgba(255, 255, 255, 0.03)';
+        Chart.defaults.animation.duration = 1800;
+        Chart.defaults.animation.easing = 'easeOutQuart';
+        Chart.defaults.font.family = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+        Chart.defaults.font.size = 12;
+        
+        // Initialize charts with premium styling
+        function initCharts() {
+            const chartOptions = {
+                responsive: true,
+                maintainAspectRatio: true,
+                layout: {
+                    padding: {
+                        top: 10,
+                        bottom: 10,
+                        left: 10,
+                        right: 10
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            color: 'rgba(255, 255, 255, 0.85)',
+                            font: {
+                                size: 12,
+                                weight: 500,
+                                family: "'Inter', sans-serif"
+                            },
+                            padding: 15,
+                            usePointStyle: true,
+                            pointStyle: 'circle'
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(10, 10, 15, 0.95)',
+                        backdropFilter: 'blur(10px)',
+                        titleColor: '#ffffff',
+                        bodyColor: 'rgba(255, 255, 255, 0.9)',
+                        borderColor: 'rgba(0, 212, 255, 0.3)',
+                        borderWidth: 1,
+                        padding: 14,
+                        cornerRadius: 12,
+                        displayColors: true,
+                        titleFont: {
+                            size: 13,
+                            weight: 600
+                        },
+                        bodyFont: {
+                            size: 12,
+                            weight: 400
+                        },
+                        boxPadding: 6
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { 
+                            color: 'rgba(255, 255, 255, 0.6)',
+                            font: {
+                                size: 11,
+                                weight: 400
+                            },
+                            padding: 8
+                        },
+                        grid: { 
+                            color: 'rgba(255, 255, 255, 0.04)',
+                            lineWidth: 1
+                        },
+                        border: {
+                            color: 'rgba(255, 255, 255, 0.08)'
+                        }
+                    },
+                    y: {
+                        ticks: { 
+                            color: 'rgba(255, 255, 255, 0.6)',
+                            font: {
+                                size: 11,
+                                weight: 400
+                            },
+                            padding: 8
+                        },
+                        grid: { 
+                            color: 'rgba(255, 255, 255, 0.04)',
+                            lineWidth: 1
+                        },
+                        border: {
+                            color: 'rgba(255, 255, 255, 0.08)'
+                        }
+                    }
+                }
+            };
+            
+            // Temperature Chart - premium colors
+            const tempCtx = document.getElementById('temperatureChart').getContext('2d');
+            charts.temperature = new Chart(tempCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Average',
+                        data: [],
+                        borderColor: '#00d4ff',
+                        backgroundColor: 'rgba(0, 212, 255, 0.1)',
+                        tension: 0.5,
+                        fill: true,
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: '#00d4ff',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointHoverBackgroundColor: '#00d4ff',
+                        pointHoverBorderColor: '#ffffff',
+                        pointHoverBorderWidth: 3
+                    }, {
+                        label: 'Min',
+                        data: [],
+                        borderColor: '#5b8def',
+                        backgroundColor: 'rgba(91, 141, 239, 0.08)',
+                        tension: 0.5,
+                        fill: true,
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: '#5b8def',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2
+                    }, {
+                        label: 'Max',
+                        data: [],
+                        borderColor: '#9d50ff',
+                        backgroundColor: 'rgba(157, 80, 255, 0.08)',
+                        tension: 0.5,
+                        fill: true,
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: '#9d50ff',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2
+                    }]
+                },
+                options: {
+                    ...chartOptions,
+                    scales: {
+                        ...chartOptions.scales,
+                        y: {
+                            ...chartOptions.scales.y,
+                            beginAtZero: false
+                        }
+                    }
+                }
+            });
+            
+            // Humidity Chart
+            const humidityCtx = document.getElementById('humidityChart').getContext('2d');
+            charts.humidity = new Chart(humidityCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Humidity (%)',
+                        data: [],
+                        borderColor: '#00d4ff',
+                        backgroundColor: 'rgba(0, 212, 255, 0.12)',
+                        tension: 0.5,
+                        fill: true,
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: '#00d4ff',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2
+                    }]
+                },
+                options: {
+                    ...chartOptions,
+                    scales: {
+                        ...chartOptions.scales,
+                        y: {
+                            ...chartOptions.scales.y,
+                            beginAtZero: false,
+                            max: 100
+                        }
+                    }
+                }
+            });
+            
+            // Rainfall Chart
+            const rainfallCtx = document.getElementById('rainfallChart').getContext('2d');
+            charts.rainfall = new Chart(rainfallCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Rainfall (mm)',
+                        data: [],
+                        backgroundColor: 'rgba(0, 212, 255, 0.4)',
+                        borderColor: '#00d4ff',
+                        borderWidth: 1.5,
+                        borderRadius: 6,
+                        borderSkipped: false,
+                        maxBarThickness: 40
+                    }]
+                },
+                options: {
+                    ...chartOptions,
+                    scales: {
+                        ...chartOptions.scales,
+                        y: {
+                            ...chartOptions.scales.y,
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+            
+            // Wind Chart
+            const windCtx = document.getElementById('windChart').getContext('2d');
+            charts.wind = new Chart(windCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Wind Speed (m/s)',
+                        data: [],
+                        borderColor: '#9d50ff',
+                        backgroundColor: 'rgba(157, 80, 255, 0.12)',
+                        tension: 0.5,
+                        fill: true,
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: '#9d50ff',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2
+                    }]
+                },
+                options: {
+                    ...chartOptions,
+                    scales: {
+                        ...chartOptions.scales,
+                        y: {
+                            ...chartOptions.scales.y,
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+            
+            // Comparison Chart
+            const comparisonCtx = document.getElementById('comparisonChart').getContext('2d');
+            charts.comparison = new Chart(comparisonCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Temperature (°C)',
+                        data: [],
+                        backgroundColor: 'rgba(0, 212, 255, 0.5)',
+                        borderColor: '#00d4ff',
+                        borderWidth: 1.5,
+                        borderRadius: 6,
+                        yAxisID: 'y'
+                    }, {
+                        label: 'Humidity (%)',
+                        data: [],
+                        backgroundColor: 'rgba(91, 141, 239, 0.5)',
+                        borderColor: '#5b8def',
+                        borderWidth: 1.5,
+                        borderRadius: 6,
+                        yAxisID: 'y1'
+                    }, {
+                        label: 'Wind (m/s)',
+                        data: [],
+                        backgroundColor: 'rgba(157, 80, 255, 0.5)',
+                        borderColor: '#9d50ff',
+                        borderWidth: 1.5,
+                        borderRadius: 6,
+                        yAxisID: 'y2'
+                    }]
+                },
+                options: {
+                    ...chartOptions,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        x: chartOptions.scales.x,
+                        y: {
+                            ...chartOptions.scales.y,
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Temperature (°C)',
+                                color: 'rgba(255, 255, 255, 0.7)',
+                                font: {
+                                    size: 11,
+                                    weight: 500
+                                }
+                            }
+                        },
+                        y1: {
+                            ...chartOptions.scales.y,
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Humidity (%)',
+                                color: 'rgba(255, 255, 255, 0.7)',
+                                font: {
+                                    size: 11,
+                                    weight: 500
+                                }
+                            },
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                        },
+                        y2: {
+                            type: 'linear',
+                            display: false,
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Input validation
+        function validateCityInput(city) {
+            if (!city || city.trim().length === 0) {
+                return { valid: false, error: 'Please enter a city name' };
+            }
+            
+            const trimmed = city.trim();
+            
+            if (trimmed.length < 2) {
+                return { valid: false, error: 'City name must be at least 2 characters' };
+            }
+            
+            // Check for obvious garbage (only numbers, special chars, etc.)
+            if (!/^[a-zA-Z\s\-'\.]+$/.test(trimmed)) {
+                return { valid: false, error: 'City name contains invalid characters' };
+            }
+            
+            // Check for obvious nonsense (too many repeated characters)
+            if (/(.)\1{4,}/.test(trimmed)) {
+                return { valid: false, error: 'Please enter a valid city name' };
+            }
+            
+            return { valid: true, city: trimmed };
+        }
+        
+        // Clear all weather data from UI
+        function clearWeatherData() {
+            document.getElementById('currentWeatherSection').style.display = 'none';
+            document.getElementById('forecastSection').style.display = 'none';
+            document.getElementById('analyticsSection').style.display = 'none';
+            document.getElementById('weatherStats').innerHTML = '';
+            document.getElementById('forecastCards').innerHTML = '';
+        }
+        
+        // Search weather function
+        async function searchWeather() {
+            const cityInput = document.getElementById('cityInput').value;
+            
+            // Validate input
+            const validation = validateCityInput(cityInput);
+            if (!validation.valid) {
+                showError(validation.error);
+                clearWeatherData();
+                return;
+            }
+            
+            const city = validation.city;
+            currentCity = city;
+            
+            showLoading(true);
+            hideError();
+            clearWeatherData(); // Clear previous data before new search
+            
+            try {
+                // Fetch current weather
+                const currentResponse = await fetch(`/api/weather/current/?city=${encodeURIComponent(city)}`);
+                const currentData = await currentResponse.json();
+                
+                // Handle errors with proper status codes
+                if (!currentData.success) {
+                    let errorMessage = currentData.error || 'Failed to fetch weather data';
+                    
+                    // Special handling for 404 (city not found)
+                    if (currentResponse.status === 404) {
+                        errorMessage = 'City not found. Please enter a valid city name.';
+                    } else if (currentResponse.status === 503) {
+                        errorMessage = 'Weather service temporarily unavailable. Please try again later.';
+                    }
+                    
+                    showError(errorMessage);
+                    showLoading(false);
+                    clearWeatherData(); // Ensure no stale data is shown
+                    return;
+                }
+                
+                // Only display if we have valid data
+                if (currentData.data && currentData.data.city) {
+                    displayCurrentWeather(currentData.data);
+                    
+                    // Fetch forecast only if current weather succeeded
+                    try {
+                        const forecastResponse = await fetch(`/api/weather/forecast/?city=${encodeURIComponent(city)}&days=7`);
+                        const forecastData = await forecastResponse.json();
+                        
+                        if (forecastData.success && forecastData.data) {
+                            displayForecast(forecastData.data);
+                        }
+                    } catch (forecastError) {
+                        console.error('Forecast error:', forecastError);
+                        // Don't show error for forecast, just skip it
+                    }
+                    
+                    // Fetch analytics only if we have valid weather data
+                    await loadAnalytics(city);
+                } else {
+                    showError('Invalid weather data received');
+                    clearWeatherData();
+                }
+                
+                showLoading(false);
+            } catch (error) {
+                console.error('Search error:', error);
+                showError('An error occurred while fetching weather data. Please try again.');
+                showLoading(false);
+                clearWeatherData(); // Clear any partial data
+            }
+        }
+        
+        // Display current weather
+        function displayCurrentWeather(data) {
+            document.getElementById('currentCity').textContent = data.city;
+            document.getElementById('currentTemp').textContent = `${Math.round(data.temperature)}°C`;
+            document.getElementById('currentDescription').textContent = data.description.charAt(0).toUpperCase() + data.description.slice(1);
+            document.getElementById('currentLocation').textContent = `${data.city}, ${data.country}`;
+            document.getElementById('currentIcon').src = `https://openweathermap.org/img/wn/${data.icon}@2x.png`;
+            
+            // Display stats
+            const statsHtml = `
+                <div class="col-md-3 col-sm-6">
+                    <div class="weather-stat-card">
+                        <i class="bi bi-thermometer-half card-icon"></i>
+                        <div class="stat-value">${Math.round(data.temperature)}°C</div>
+                        <div class="stat-label">Temperature</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <div class="weather-stat-card">
+                        <i class="bi bi-droplet card-icon"></i>
+                        <div class="stat-value">${data.humidity}%</div>
+                        <div class="stat-label">Humidity</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <div class="weather-stat-card">
+                        <i class="bi bi-wind card-icon"></i>
+                        <div class="stat-value">${data.wind_speed.toFixed(1)}</div>
+                        <div class="stat-label">Wind Speed</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <div class="weather-stat-card">
+                        <i class="bi bi-cloud card-icon"></i>
+                        <div class="stat-value" style="font-size: 1.5rem;">${data.description}</div>
+                        <div class="stat-label">Condition</div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('weatherStats').innerHTML = statsHtml;
+            document.getElementById('currentWeatherSection').style.display = 'block';
+        }
+        
+        // Display forecast
+        function displayForecast(data) {
+            let forecastHtml = '';
+            data.forEach(day => {
+                const date = new Date(day.date);
+                const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+                const monthDay = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                
+                forecastHtml += `
+                    <div class="col-md-3 col-sm-6 col-6">
+                        <div class="forecast-item">
+                            <div class="fw-bold mb-2">${dayName}</div>
+                            <div class="small text-muted-dark mb-2">${monthDay}</div>
+                            <img src="https://openweathermap.org/img/wn/${day.icon}.png" alt="${day.description}">
+                            <div class="mt-2">
+                                <div class="fw-bold" style="font-size: 1.125rem;">${Math.round(day.temperature_max)}°</div>
+                                <div class="small text-muted-dark">${Math.round(day.temperature_min)}°</div>
+                            </div>
+                            <div class="small mt-2 text-muted-dark" style="font-size: 0.75rem;">${day.description}</div>
+                            ${day.rain_volume > 0 ? `<div class="small mt-1" style="color: var(--accent-cyan);"><i class="bi bi-droplet"></i> ${day.rain_volume.toFixed(1)}mm</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            document.getElementById('forecastCards').innerHTML = forecastHtml;
+            document.getElementById('forecastSection').style.display = 'block';
+        }
+        
+        // Load analytics data (only if we have valid weather data)
+        async function loadAnalytics(city) {
+            // Only show analytics if we have a valid city and weather data
+            if (!city || !document.getElementById('currentWeatherSection').style.display || 
+                document.getElementById('currentWeatherSection').style.display === 'none') {
+                return;
+            }
+            
+            try {
+                let hasData = false;
+                
+                // Temperature trends
+                try {
+                    const tempResponse = await fetch(`/api/analytics/temperature/?city=${encodeURIComponent(city)}&days=30`);
+                    const tempData = await tempResponse.json();
+                    if (tempData.success && tempData.data && tempData.data.dates && tempData.data.dates.length > 0) {
+                        updateTemperatureChart(tempData.data);
+                        hasData = true;
+                    }
+                } catch (e) {
+                    console.error('Temperature analytics error:', e);
+                }
+                
+                // Humidity trends
+                try {
+                    const humidityResponse = await fetch(`/api/analytics/humidity/?city=${encodeURIComponent(city)}&days=30`);
+                    const humidityData = await humidityResponse.json();
+                    if (humidityData.success && humidityData.data && humidityData.data.dates && humidityData.data.dates.length > 0) {
+                        updateHumidityChart(humidityData.data);
+                        hasData = true;
+                    }
+                } catch (e) {
+                    console.error('Humidity analytics error:', e);
+                }
+                
+                // Rainfall analysis
+                try {
+                    const rainfallResponse = await fetch(`/api/analytics/rainfall/?city=${encodeURIComponent(city)}&days=30`);
+                    const rainfallData = await rainfallResponse.json();
+                    if (rainfallData.success && rainfallData.data && rainfallData.data.dates && rainfallData.data.dates.length > 0) {
+                        updateRainfallChart(rainfallData.data);
+                        hasData = true;
+                    }
+                } catch (e) {
+                    console.error('Rainfall analytics error:', e);
+                }
+                
+                // Wind analysis
+                try {
+                    const windResponse = await fetch(`/api/analytics/wind/?city=${encodeURIComponent(city)}&days=30`);
+                    const windData = await windResponse.json();
+                    if (windData.success && windData.data && windData.data.dates && windData.data.dates.length > 0) {
+                        updateWindChart(windData.data);
+                        hasData = true;
+                    }
+                } catch (e) {
+                    console.error('Wind analytics error:', e);
+                }
+                
+                // Comparison data
+                try {
+                    const comparisonResponse = await fetch(`/api/analytics/comparison/?city=${encodeURIComponent(city)}&days=7`);
+                    const comparisonData = await comparisonResponse.json();
+                    if (comparisonData.success && comparisonData.data && comparisonData.data.dates && comparisonData.data.dates.length > 0) {
+                        updateComparisonChart(comparisonData.data);
+                        hasData = true;
+                    }
+                } catch (e) {
+                    console.error('Comparison analytics error:', e);
+                }
+                
+                // Only show analytics section if we have data
+                if (hasData) {
+                    document.getElementById('analyticsSection').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error loading analytics:', error);
+                // Don't show analytics if there's an error
+            }
+        }
+        
+        // Update charts with smooth animations
+        function updateTemperatureChart(data) {
+            charts.temperature.data.labels = data.dates;
+            charts.temperature.data.datasets[0].data = data.temperatures;
+            charts.temperature.data.datasets[1].data = data.min_temperatures;
+            charts.temperature.data.datasets[2].data = data.max_temperatures;
+            charts.temperature.update('active');
+        }
+        
+        function updateHumidityChart(data) {
+            charts.humidity.data.labels = data.dates;
+            charts.humidity.data.datasets[0].data = data.humidity;
+            charts.humidity.update('active');
+        }
+        
+        function updateRainfallChart(data) {
+            charts.rainfall.data.labels = data.dates;
+            charts.rainfall.data.datasets[0].data = data.rainfall;
+            charts.rainfall.update('active');
+        }
+        
+        function updateWindChart(data) {
+            charts.wind.data.labels = data.dates;
+            charts.wind.data.datasets[0].data = data.wind_speed;
+            charts.wind.update('active');
+        }
+        
+        function updateComparisonChart(data) {
+            charts.comparison.data.labels = data.dates;
+            charts.comparison.data.datasets[0].data = data.temperature;
+            charts.comparison.data.datasets[1].data = data.humidity;
+            charts.comparison.data.datasets[2].data = data.wind_speed;
+            charts.comparison.update('active');
+        }
+        
+        // Utility functions
+        function showLoading(show) {
+            const spinner = document.querySelector('.loading-spinner');
+            if (spinner) {
+                spinner.style.display = show ? 'block' : 'none';
+            }
+        }
+        
+        function showError(message) {
+            const errorDiv = document.querySelector('.error-alert');
+            const errorMessage = errorDiv.querySelector('.error-message');
+            if (errorMessage) {
+                errorMessage.textContent = message;
+            } else {
+                errorDiv.textContent = message;
+            }
+            errorDiv.style.display = 'block';
+            
+            // Scroll to error if needed
+            errorDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        
+        function hideError() {
+            const errorDiv = document.querySelector('.error-alert');
+            if (errorDiv) {
+                errorDiv.style.display = 'none';
+            }
+        }
+        
+        // Allow Enter key to search
+        document.getElementById('cityInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchWeather();
+            }
+        });
+        
+        // Initialize charts on page load
+        window.addEventListener('load', function() {
+            initCharts();
+        });
+    </script>
+</body>
+</html>
